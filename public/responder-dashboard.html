@@ -413,6 +413,11 @@
         let disasters = [];
         let selectedDisaster = null;
 
+        // Initialize Socket.IO connection
+        socket = io({
+            withCredentials: true
+        });
+
         // Check authentication first
         async function checkAuth() {
             try {
@@ -446,12 +451,8 @@
             loadDisasters();
         }
 
-        // Connect to Socket.IO
-        function connectSocket() {
-            socket = io(API_URL, {
-                withCredentials: true
-            });
-
+        // Connect to Socket.IO events
+        function setupSocketEvents() {
             socket.on('connect', () => {
                 console.log('Connected to server via Socket.IO');
             });
@@ -716,7 +717,7 @@
         async function initializeApp() {
             const isAuthenticated = await checkAuth();
             if (isAuthenticated) {
-                connectSocket();
+                setupSocketEvents();
                 // Map will be initialized by the Google Maps callback
             }
         }

@@ -274,19 +274,31 @@
 
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
-        const API_URL = window.location.origin;
+        // Use relative URLs instead of absolute
+        const API_URL = '';
         let currentLocation = null;
         let socket = null;
         let currentDisasterId = null;
 
         // Connect to Socket.IO
         function connectSocket() {
-            socket = io(API_URL);
+            socket = io({
+                withCredentials: true
+            });
             
+            socket.on('connect', () => {
+                console.log('Connected to server via Socket.IO');
+            });
+
             socket.on('disaster-accepted', (disaster) => {
+                console.log('Disaster accepted update received:', disaster);
                 if (disaster.id === currentDisasterId) {
                     updateStatusCard(disaster);
                 }
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
             });
         }
 
@@ -311,9 +323,18 @@
                         let errorMsg = 'Unable to detect location. ';
                         if (error.code === error.PERMISSION_DENIED) {
                             errorMsg += 'Please enable location permissions.';
+                        } else if (error.code === error.TIMEOUT) {
+                            errorMsg += 'Location request timed out.';
+                        } else {
+                            errorMsg += 'Please try again.';
                         }
                         document.getElementById('locationStatus').textContent = errorMsg;
                         document.getElementById('locationStatus').style.color = '#dc3545';
+                        console.error('Geolocation error:', error);
+                    },
+                    {
+                        timeout: 10000,
+                        enableHighAccuracy: true
                     }
                 );
             } else {
@@ -351,7 +372,7 @@
                 content += `
                     <p style="margin-top: 15px; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #28a745;">
                         <strong style="color: #28a745;">✓ Help is on the way!</strong><br>
-                        <strong>Responder:</strong> ${disaster.responder_name}<br>
+                        <strong>Responder:</strong> ${disaster.responder_name || 'Emergency Responder'}<br>
                         <strong>Estimated Arrival:</strong> ${disaster.estimated_time}
                     </p>
                 `;
@@ -392,7 +413,7 @@
             };
 
             try {
-                const response = await fetch(`${API_URL}/api/report-disaster`, {
+                const response = await fetch('/api/report-disaster', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -414,6 +435,7 @@
                     showAlert(data.error || 'Failed to report emergency', 'error');
                 }
             } catch (error) {
+                console.error('Report submission error:', error);
                 showAlert('Network error. Please check your connection.', 'error');
             } finally {
                 submitBtn.disabled = false;
@@ -425,7 +447,7 @@
         function pollDisasterStatus(disasterId) {
             const interval = setInterval(async () => {
                 try {
-                    const response = await fetch(`${API_URL}/api/disaster-status/${disasterId}`);
+                    const response = await fetch(`/api/disaster-status/${disasterId}`);
                     if (response.ok) {
                         const disaster = await response.json();
                         updateStatusCard(disaster);
@@ -436,8 +458,18 @@
                     }
                 } catch (error) {
                     console.error('Error polling status:', error);
+                // Don't clear interval on error, keep trying
+                clearInterval(interval);
+                showAlert('Connection lost. Please refresh to check status.', 'error');
+                pollDisasterStatus(disasterId); // Restart polling
+                return;
                 }
             }, 5000); // Poll every 5 seconds
+
+            // Stop polling after 30 minutes
+            setTimeout(() => {
+                clearInterval(interval);
+            }, 30 * 60 * 1000);
         }
     </script>
 </body>

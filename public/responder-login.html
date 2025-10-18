@@ -258,12 +258,12 @@
             btn.textContent = 'Logging in...';
 
             try {
-                const response = await fetch(`/api/login`, {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    credentials: 'include', // Important for cookies
+                    credentials: 'include',
                     body: JSON.stringify({ username, password })
                 });
 
@@ -278,6 +278,7 @@
                     showAlert(data.error || 'Login failed', 'error');
                 }
             } catch (error) {
+                console.error('Login error:', error);
                 showAlert('Network error. Please try again.', 'error');
             } finally {
                 btn.disabled = false;
@@ -299,16 +300,21 @@
                 return;
             }
 
+            if (password.length < 6) {
+                showAlert('Password must be at least 6 characters long', 'error');
+                return;
+            }
+
             btn.disabled = true;
             btn.textContent = 'Registering...';
 
             try {
-                const response = await fetch(`/api/register`, {
+                const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    credentials: 'include', // Add this for consistency
+                    credentials: 'include',
                     body: JSON.stringify({ username, email, password })
                 });
 
@@ -319,11 +325,13 @@
                     setTimeout(() => {
                         switchTab('login');
                         document.getElementById('login_username').value = username;
+                        document.getElementById('login_password').value = '';
                     }, 1500);
                 } else {
                     showAlert(data.error || 'Registration failed', 'error');
                 }
             } catch (error) {
+                console.error('Registration error:', error);
                 showAlert('Network error. Please try again.', 'error');
             } finally {
                 btn.disabled = false;
@@ -331,19 +339,25 @@
             }
         }
 
-        // Check if already logged in - FIXED VERSION
+        // Check if already logged in
         (async function checkAuth() {
             try {
-                const response = await fetch(`/api/auth/check`, {
-                    credentials: 'include' // THIS WAS MISSING
+                const response = await fetch('/api/auth/check', {
+                    credentials: 'include'
                 });
+                
+                if (!response.ok) {
+                    throw new Error('Auth check failed');
+                }
+                
                 const data = await response.json();
                 
                 if (data.authenticated) {
                     window.location.href = 'responder-dashboard.html';
                 }
             } catch (error) {
-                console.log('Not authenticated');
+                console.log('Not authenticated or auth check failed:', error);
+                // Stay on login page if not authenticated
             }
         })();
     </script>

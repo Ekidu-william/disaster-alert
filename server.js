@@ -9,53 +9,88 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
 
-// Middleware
-// Updated CORS configuration
-app.use(cors({
+// Enhanced CORS configuration
+const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
+    // List of allowed origins
     const allowedOrigins = [
-      process.env.FRONTEND_URL,
+      'https://disaster-alert-system-production.up.railway.app', // Your Railway app URL
       'http://localhost:3000',
-      'https://your-app-name.up.railway.app' // Your Railway URL
+      'http://127.0.0.1:3000',
+      'http://localhost:5500',
+      'http://127.0.0.1:5500'
     ];
     
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // Allow any origin in development, restrict in production
+      if (process.env.NODE_ENV === 'production') {
+        callback(new Error('Not allowed by CORS'));
+      } else {
+        callback(null, true);
+      }
     }
   },
-  credentials: true
-}));
+  credentials: true, // Important for cookies/session
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+const io = socketIo(server, {
+  cors: {
+    origin: function (origin, callback) {
+      // Same CORS logic for Socket.IO
+      if (!origin) return callback(null, true);
+      
+      const allowedOrigins = [
+        'https://disaster-alert-system-production.up.railway.app',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5500',
+        'http://127.0.0.1:5500'
+      ];
+      
+      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
-// Updated session configuration
+// Enhanced session configuration
 app.use(session({
   secret: process.env.SESSION_SECRET || 'disaster-alert-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    secure: process.env.NODE_ENV === 'production', // true in production
+    secure: process.env.NODE_ENV === 'production',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     httpOnly: true
   },
-  proxy: true // Trust the Railway proxy
+  proxy: true // Trust Railway's proxy
 }));
 
-// MySQL Database Connection for Railway - UPDATED
+// MySQL Database Connection for Railway
 function getDbConfig() {
   if (process.env.DATABASE_URL) {
     // Parse DATABASE_URL for Railway
@@ -74,7 +109,7 @@ function getDbConfig() {
     return {
       host: process.env.MYSQLHOST || 'localhost',
       user: process.env.MYSQLUSER || 'root',
-      password: process.env.MYSQLPASSWORD || 'your_password',
+      password: process.env.MYSQLPASSWORD || '',
       database: process.env.MYSQLDATABASE || 'disaster_alert',
       port: process.env.MYSQLPORT || 3306,
       connectTimeout: 60000
@@ -89,7 +124,6 @@ function connectWithRetry() {
   db.connect((err) => {
     if (err) {
       console.error('Database connection failed:', err);
-      console.log('Database config:', getDbConfig());
       console.log('Retrying in 5 seconds...');
       setTimeout(connectWithRetry, 5000);
     } else {
@@ -174,11 +208,13 @@ app.post('/api/register', async (req, res) => {
         if (err.code === 'ER_DUP_ENTRY') {
           return res.status(400).json({ error: 'Username or email already exists' });
         }
+        console.error('Registration error:', err);
         return res.status(500).json({ error: 'Registration failed' });
       }
       res.json({ message: 'Registration successful', userId: result.insertId });
     });
   } catch (error) {
+    console.error('Server error during registration:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -194,6 +230,7 @@ app.post('/api/login', (req, res) => {
   const query = 'SELECT * FROM responders WHERE username = ?';
   db.query(query, [username], async (err, results) => {
     if (err) {
+      console.error('Login query error:', err);
       return res.status(500).json({ error: 'Login failed' });
     }
 
@@ -202,30 +239,41 @@ app.post('/api/login', (req, res) => {
     }
 
     const responder = results[0];
-    const validPassword = await bcrypt.compare(password, responder.password);
+    
+    try {
+      const validPassword = await bcrypt.compare(password, responder.password);
 
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    req.session.responderId = responder.id;
-    req.session.username = responder.username;
-
-    res.json({ 
-      message: 'Login successful',
-      responder: {
-        id: responder.id,
-        username: responder.username,
-        email: responder.email
+      if (!validPassword) {
+        return res.status(401).json({ error: 'Invalid credentials' });
       }
-    });
+
+      req.session.responderId = responder.id;
+      req.session.username = responder.username;
+
+      res.json({ 
+        message: 'Login successful',
+        responder: {
+          id: responder.id,
+          username: responder.username,
+          email: responder.email
+        }
+      });
+    } catch (error) {
+      console.error('Password comparison error:', error);
+      return res.status(500).json({ error: 'Login failed' });
+    }
   });
 });
 
 // Logout
 app.post('/api/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ message: 'Logged out successfully' });
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+      return res.status(500).json({ error: 'Logout failed' });
+    }
+    res.json({ message: 'Logged out successfully' });
+  });
 });
 
 // Check authentication status
@@ -267,7 +315,12 @@ app.post('/api/report-disaster', (req, res) => {
     // Get the newly created disaster
     db.query('SELECT * FROM disasters WHERE id = ?', [disasterId], (err, disasters) => {
       if (err) {
+        console.error('Error retrieving disaster:', err);
         return res.status(500).json({ error: 'Failed to retrieve disaster' });
+      }
+
+      if (disasters.length === 0) {
+        return res.status(500).json({ error: 'Disaster not found after creation' });
       }
 
       const disaster = disasters[0];
@@ -297,6 +350,7 @@ app.get('/api/disaster-status/:id', (req, res) => {
 
   db.query(query, [disasterId], (err, results) => {
     if (err) {
+      console.error('Error getting disaster status:', err);
       return res.status(500).json({ error: 'Failed to get disaster status' });
     }
 
@@ -325,6 +379,7 @@ app.get('/api/disasters', (req, res) => {
 
   db.query(query, (err, results) => {
     if (err) {
+      console.error('Error retrieving disasters:', err);
       return res.status(500).json({ error: 'Failed to retrieve disasters' });
     }
     res.json(results);
@@ -352,6 +407,7 @@ app.post('/api/accept-disaster', (req, res) => {
 
   db.query(query, [responder_id, estimated_time, disaster_id], (err, result) => {
     if (err) {
+      console.error('Error accepting disaster:', err);
       return res.status(500).json({ error: 'Failed to accept disaster' });
     }
 
@@ -369,7 +425,12 @@ app.post('/api/accept-disaster', (req, res) => {
 
     db.query(getQuery, [disaster_id], (err, disasters) => {
       if (err) {
+        console.error('Error retrieving updated disaster:', err);
         return res.status(500).json({ error: 'Failed to retrieve updated disaster' });
+      }
+
+      if (disasters.length === 0) {
+        return res.status(500).json({ error: 'Disaster not found after acceptance' });
       }
 
       const disaster = disasters[0];
@@ -387,7 +448,11 @@ app.post('/api/accept-disaster', (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
 // ==================== SOCKET.IO ====================
@@ -404,6 +469,8 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`📊 Database: ${getDbConfig().database}`);
+  console.log(`🔗 CORS enabled for production and development origins`);
 });
