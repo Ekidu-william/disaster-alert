@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Response Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .stat-card h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .stat-card.pending .number {
+            color: #ffc107;
+        }
+
+        .stat-card.accepted .number {
+            color: #28a745;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            padding: 25px;
+        }
+
+        .panel h2 {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #map {
+            height: 500px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .disaster-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .disaster-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .disaster-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .disaster-card.pending {
+            border-left-color: #ffc107;
+        }
+
+        .disaster-card.accepted {
+            border-left-color: #28a745;
+        }
+
+        .disaster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .disaster-type {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-badge.pending {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .status-badge.accepted {
+            background: #28a745;
+            color: white;
+        }
+
+        .disaster-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .disaster-info strong {
+            color: #333;
+        }
+
+        .disaster-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn-accept {
+            background: #28a745;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-accept:hover {
+            background: #218838;
+        }
+
+        .btn-view {
+            background: #667eea;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-view:hover {
+            background: #5568d3;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+
+        .btn-confirm {
+            background: #28a745;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-confirm:hover {
+            background: #218838;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 15px;
+            opacity: 0.3;
+        }
+
+        @media (max-width: 968px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>🚑 Emergency Response Dashboard</h1>
+            <div class="user-info">
+                <span id="username">Responder</span>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats">
+            <div class="stat-card pending">
+                <h3>Pending Requests</h3>
+                <div class="number" id="pendingCount">0</div>
+            </div>
+            <div class="stat-card accepted">
+                <h3>Accepted Requests</h3>
+                <div class="number" id="acceptedCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Reports</h3>
+                <div class="number" id="totalCount">0</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="panel">
+                <h2>📋 Emergency Reports</h2>
+                <div class="disaster-list" id="disasterList">
+                    <div class="empty-state">
+                        <p>Loading emergency reports...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>🗺️ Live Emergency Map</h2>
+                <div id="map"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accept Modal -->
+    <div id="acceptModal" class="modal">
+        <div class="modal-content">
+            <h3>Accept Emergency Request</h3>
+            <div class="form-group">
+                <label>Estimated Time of Arrival</label>
+                <select id="estimatedTime">
+                    <option value="5-10 minutes">5-10 minutes</option>
+                    <option value="10-15 minutes">10-15 minutes</option>
+                    <option value="15-20 minutes">15-20 minutes</option>
+                    <option value="20-30 minutes">20-30 minutes</option>
+                    <option value="30-45 minutes">30-45 minutes</option>
+                    <option value="45-60 minutes">45-60 minutes</option>
+                    <option value="1-2 hours">1-2 hours</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-confirm" onclick="confirmAccept()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const API_URL = window.location.origin;
+        let map, markers = {};
+        let socket;
+        let disasters = [];
+        let selectedDisaster = null;
+
+        // Initialize Google Maps
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 0.3476, lng: 32.5825 }, // Kampala, Uganda
+                zoom: 12
+            });
+
+            loadDisasters();
+        }
+
+        // Connect to Socket.IO
+        function connectSocket() {
+            socket = io(API_URL);
+
+            socket.on('new-disaster', (disaster) => {
+                console.log('New disaster received:', disaster);
+                disasters.unshift(disaster);
+                updateUI();
+                addMarker(disaster);
+            });
+
+            socket.on('disaster-accepted', (disaster) => {
+                console.log('Disaster accepted:', disaster);
+                const index = disasters.findIndex(d => d.id === disaster.id);
+                if (index !== -1) {
+                    disasters[index] = disaster;
+                    updateUI();
+                    updateMarker(disaster);
+                }
+            });
+        }
+
+        // Check authentication
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_URL}/api/auth/check`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+
+                if (!data.authenticated) {
+                    window.location.href = 'responder-login.html';
+                } else {
+                    document.getElementById('username').textContent = data.responder.username;
+                }
+            } catch (error) {
+                window.location.href = 'responder-login.html';
+            }
+        }
+
+        // Load disasters
+        async function loadDisasters() {
+            try {
+                const response = await fetch(`${API_URL}/api/disasters`, {
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    window.location.href = 'responder-login.html';
+                    return;
+                }
+
+                disasters = await response.json();
+                updateUI();
+                
+                // Add markers for all disasters
+                disasters.forEach(disaster => addMarker(disaster));
+            } catch (error) {
+                console.error('Error loading disasters:', error);
+            }
+        }
+
+        // Update UI
+        function updateUI() {
+            const pendingCount = disasters.filter(d => d.status === 'pending').length;
+            const acceptedCount = disasters.filter(d => d.status === 'accepted').length;
+
+            document.getElementById('pendingCount').textContent = pendingCount;
+            document.getElementById('acceptedCount').textContent = acceptedCount;
+            document.getElementById('totalCount').textContent = disasters.length;
+
+            renderDisasterList();
+        }
+
+        function renderDisasterList() {
+    const listEl = document.getElementById('disasterList');
+
+    if (disasters.length === 0) {
+        listEl.innerHTML = `
+            <div class="empty-state">
+                <p>No emergency reports at the moment</p>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = disasters.map(disaster => {
+        const lat = parseFloat(disaster.latitude);
+        const lng = parseFloat(disaster.longitude);
+        const latText = isNaN(lat) ? 'Unknown' : lat.toFixed(6);
+        const lngText = isNaN(lng) ? 'Unknown' : lng.toFixed(6);
+
+        return `
+            <div class="disaster-card ${disaster.status}">
+                <div class="disaster-header">
+                    <div class="disaster-type">🚨 ${disaster.disaster_type}</div>
+                    <span class="status-badge ${disaster.status}">${disaster.status}</span>
+                </div>
+                <div class="disaster-info">
+                    <strong>Reporter:</strong> ${disaster.reporter_name} | ${disaster.reporter_phone}
+                </div>
+                <div class="disaster-info">
+                    <strong>Description:</strong> ${disaster.description || 'No description provided'}
+                </div>
+                <div class="disaster-info">
+                    <strong>Location:</strong> ${latText}, ${lngText}
+                </div>
+                <div class="disaster-info">
+                    <strong>Reported:</strong> ${new Date(disaster.created_at).toLocaleString()}
+                </div>
+                ${disaster.status === 'accepted' ? `
+                    <div class="disaster-info" style="margin-top: 10px; padding: 10px; background: #d4edda; border-radius: 6px;">
+                        <strong>Accepted by:</strong> ${disaster.responder_name}<br>
+                        <strong>ETA:</strong> ${disaster.estimated_time}
+                    </div>
+                ` : ''}
+                <div class="disaster-actions">
+                    <button class="btn btn-view" onclick="viewOnMap(${disaster.id})">View on Map</button>
+                    ${disaster.status === 'pending' ? `
+                        <button class="btn btn-accept" onclick="openAcceptModal(${disaster.id})">Accept Request</button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+
+        // Add marker to map
+        function addMarker(disaster) {
+            const icon = {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 10,
+                fillColor: disaster.status === 'pending' ? '#ffc107' : '#28a745',
+                fillOpacity: 0.8,
+                strokeWeight: 2,
+                strokeColor: 'white'
+            };
+
+            const marker = new google.maps.Marker({
+                position: { lat: parseFloat(disaster.latitude), lng: parseFloat(disaster.longitude) },
+                map: map,
+                icon: icon,
+                title: disaster.disaster_type
+            });
+
+            const infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div style="padding: 10px;">
+                        <h3>${disaster.disaster_type}</h3>
+                        <p><strong>Reporter:</strong> ${disaster.reporter_name}</p>
+                        <p><strong>Phone:</strong> ${disaster.reporter_phone}</p>
+                        <p><strong>Status:</strong> ${disaster.status}</p>
+                        ${disaster.description ? `<p><strong>Description:</strong> ${disaster.description}</p>` : ''}
+                    </div>
+                `
+            });
+
+            marker.addListener('click', () => {
+                infoWindow.open(map, marker);
+            });
+
+            markers[disaster.id] = { marker, infoWindow };
+        }
+
+        // Update marker
+        function updateMarker(disaster) {
+            if (markers[disaster.id]) {
+                const icon = {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: disaster.status === 'pending' ? '#ffc107' : '#28a745',
+                    fillOpacity: 0.8,
+                    strokeWeight: 2,
+                    strokeColor: 'white'
+                };
+                markers[disaster.id].marker.setIcon(icon);
+            }
+        }
+
+        // View disaster on map
+        function viewOnMap(disasterId) {
+            const disaster = disasters.find(d => d.id === disasterId);
+            if (disaster && markers[disaster.id]) {
+                map.setCenter({ lat: parseFloat(disaster.latitude), lng: parseFloat(disaster.longitude) });
+                map.setZoom(15);
+                markers[disaster.id].infoWindow.open(map, markers[disaster.id].marker);
+            }
+        }
+
+        // Open accept modal
+        function openAcceptModal(disasterId) {
+            selectedDisaster = disasterId;
+            document.getElementById('acceptModal').classList.add('active');
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('acceptModal').classList.remove('active');
+            selectedDisaster = null;
+        }
+
+        // Confirm accept
+        async function confirmAccept() {
+            const estimatedTime = document.getElementById('estimatedTime').value;
+
+            try {
+                const response = await fetch(`${API_URL}/api/accept-disaster`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        disaster_id: selectedDisaster,
+                        estimated_time: estimatedTime
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Emergency request accepted successfully!');
+                    closeModal();
+                } else {
+                    alert(data.error || 'Failed to accept request');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        // Logout
+        async function logout() {
+            try {
+                await fetch(`${API_URL}/api/logout`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                window.location.href = 'responder-login.html';
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+
+        // Initialize
+        checkAuth();
+        connectSocket();
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
+</body>
+</html>

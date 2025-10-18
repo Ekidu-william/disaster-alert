@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report Disaster - Emergency Alert System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .location-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+
+        .location-info strong {
+            color: #667eea;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status-check {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .status-check a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .status-check a:hover {
+            text-decoration: underline;
+        }
+
+        #statusCard {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .status-pending {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .status-accepted {
+            background: #28a745;
+            color: white;
+        }
+
+        .responder-link {
+            display: block;
+            text-align: center;
+            margin-top: 30px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            color: #333;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .responder-link:hover {
+            background: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚨 Report Emergency</h1>
+        <p class="subtitle">Report a disaster and help will be dispatched immediately</p>
+
+        <div id="alertBox" class="alert"></div>
+
+        <form id="disasterForm">
+            <div class="form-group">
+                <label for="reporter_name">Your Name *</label>
+                <input type="text" id="reporter_name" name="reporter_name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="reporter_phone">Phone Number *</label>
+                <input type="tel" id="reporter_phone" name="reporter_phone" placeholder="+256700000000" required>
+            </div>
+
+            <div class="form-group">
+                <label for="disaster_type">Type of Emergency *</label>
+                <select id="disaster_type" name="disaster_type" required>
+                    <option value="">Select emergency type</option>
+                    <option value="Fire">Fire</option>
+                    <option value="Flood">Flood</option>
+                    <option value="Earthquake">Earthquake</option>
+                    <option value="Medical">Medical Emergency</option>
+                    <option value="Accident">Traffic Accident</option>
+                    <option value="Violence">Violence/Crime</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" placeholder="Provide details about the emergency..."></textarea>
+            </div>
+
+            <div class="location-info">
+                <strong>📍 Location:</strong> <span id="locationStatus">Detecting your location...</span>
+                <div id="coordinates" style="margin-top: 5px; display: none;">
+                    Lat: <span id="lat"></span>, Long: <span id="lng"></span>
+                </div>
+            </div>
+
+            <button type="submit" id="submitBtn">
+                <span id="btnText">Report Emergency</span>
+            </button>
+        </form>
+
+        <div id="statusCard" style="display: none;"></div>
+
+        <div class="status-check">
+            <p style="color: #666; font-size: 14px;">Track your report status with the ID provided after submission</p>
+        </div>
+
+        <a href="responder-login.html" class="responder-link">
+            🚑 Emergency Responder? Login Here
+        </a>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const API_URL = window.location.origin;
+        let currentLocation = null;
+        let socket = null;
+        let currentDisasterId = null;
+
+        // Connect to Socket.IO
+        function connectSocket() {
+            socket = io(API_URL);
+            
+            socket.on('disaster-accepted', (disaster) => {
+                if (disaster.id === currentDisasterId) {
+                    updateStatusCard(disaster);
+                }
+            });
+        }
+
+        connectSocket();
+
+        // Get user's location
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        currentLocation = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                        document.getElementById('locationStatus').textContent = 'Location detected successfully ✓';
+                        document.getElementById('locationStatus').style.color = '#28a745';
+                        document.getElementById('coordinates').style.display = 'block';
+                        document.getElementById('lat').textContent = currentLocation.latitude.toFixed(6);
+                        document.getElementById('lng').textContent = currentLocation.longitude.toFixed(6);
+                    },
+                    (error) => {
+                        let errorMsg = 'Unable to detect location. ';
+                        if (error.code === error.PERMISSION_DENIED) {
+                            errorMsg += 'Please enable location permissions.';
+                        }
+                        document.getElementById('locationStatus').textContent = errorMsg;
+                        document.getElementById('locationStatus').style.color = '#dc3545';
+                    }
+                );
+            } else {
+                document.getElementById('locationStatus').textContent = 'Geolocation is not supported by your browser';
+                document.getElementById('locationStatus').style.color = '#dc3545';
+            }
+        }
+
+        getLocation();
+
+        // Show alert
+        function showAlert(message, type) {
+            const alertBox = document.getElementById('alertBox');
+            alertBox.textContent = message;
+            alertBox.className = `alert ${type}`;
+            alertBox.style.display = 'block';
+            setTimeout(() => {
+                alertBox.style.display = 'none';
+            }, 5000);
+        }
+
+        // Update status card
+        function updateStatusCard(disaster) {
+            const statusCard = document.getElementById('statusCard');
+            const statusClass = disaster.status === 'pending' ? 'status-pending' : 'status-accepted';
+            
+            let content = `
+                <h3 style="margin-bottom: 15px;">Report Status</h3>
+                <p><strong>Report ID:</strong> #${disaster.id}</p>
+                <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${disaster.status.toUpperCase()}</span></p>
+                <p><strong>Type:</strong> ${disaster.disaster_type}</p>
+            `;
+
+            if (disaster.status === 'accepted') {
+                content += `
+                    <p style="margin-top: 15px; padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #28a745;">
+                        <strong style="color: #28a745;">✓ Help is on the way!</strong><br>
+                        <strong>Responder:</strong> ${disaster.responder_name}<br>
+                        <strong>Estimated Arrival:</strong> ${disaster.estimated_time}
+                    </p>
+                `;
+            } else {
+                content += `
+                    <p style="margin-top: 15px; padding: 15px; background: white; border-radius: 8px;">
+                        <strong>⏳ Your report is being reviewed</strong><br>
+                        A responder will accept your request shortly.
+                    </p>
+                `;
+            }
+
+            statusCard.innerHTML = content;
+            statusCard.style.display = 'block';
+        }
+
+        // Handle form submission
+        document.getElementById('disasterForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!currentLocation) {
+                showAlert('Please wait for location detection or enable location services', 'error');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            submitBtn.disabled = true;
+            btnText.innerHTML = '<span class="loading"></span> Reporting...';
+
+            const formData = {
+                reporter_name: document.getElementById('reporter_name').value,
+                reporter_phone: document.getElementById('reporter_phone').value,
+                disaster_type: document.getElementById('disaster_type').value,
+                description: document.getElementById('description').value,
+                latitude: currentLocation.latitude,
+                longitude: currentLocation.longitude
+            };
+
+            try {
+                const response = await fetch(`${API_URL}/api/report-disaster`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentDisasterId = data.disasterId;
+                    showAlert(`Emergency reported successfully! Report ID: #${data.disasterId}`, 'success');
+                    updateStatusCard(data.disaster);
+                    document.getElementById('disasterForm').reset();
+                    
+                    // Start polling for status updates
+                    pollDisasterStatus(data.disasterId);
+                } else {
+                    showAlert(data.error || 'Failed to report emergency', 'error');
+                }
+            } catch (error) {
+                showAlert('Network error. Please check your connection.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                btnText.textContent = 'Report Emergency';
+            }
+        });
+
+        // Poll disaster status
+        function pollDisasterStatus(disasterId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_URL}/api/disaster-status/${disasterId}`);
+                    if (response.ok) {
+                        const disaster = await response.json();
+                        updateStatusCard(disaster);
+                        
+                        if (disaster.status === 'accepted') {
+                            clearInterval(interval);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error polling status:', error);
+                }
+            }, 5000); // Poll every 5 seconds
+        }
+    </script>
+</body>
+</html>

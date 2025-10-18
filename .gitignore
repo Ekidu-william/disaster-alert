@@ -1,0 +1,8 @@
+### Step 4: Create .gitignore file
+
+Create `.gitignore`:
+```
+node_modules/
+.env
+.DS_Store
+*.log
