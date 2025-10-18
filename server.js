@@ -10,62 +10,15 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// Enhanced CORS configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // List of allowed origins
-    const allowedOrigins = [
-      'https://disaster-alert-system-production.up.railway.app', // Your Railway app URL
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:5500',
-      'http://127.0.0.1:5500'
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      // Allow any origin in development, restrict in production
-      if (process.env.NODE_ENV === 'production') {
-        callback(new Error('Not allowed by CORS'));
-      } else {
-        callback(null, true);
-      }
-    }
-  },
-  credentials: true, // Important for cookies/session
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-};
-
-app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
+// SIMPLE CORS FIX - Allow all origins
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 
 const io = socketIo(server, {
   cors: {
-    origin: function (origin, callback) {
-      // Same CORS logic for Socket.IO
-      if (!origin) return callback(null, true);
-      
-      const allowedOrigins = [
-        'https://disaster-alert-system-production.up.railway.app',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://localhost:5500',
-        'http://127.0.0.1:5500'
-      ];
-      
-      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true,
     methods: ["GET", "POST"],
     credentials: true
   }
