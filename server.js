@@ -32,21 +32,41 @@ app.use(session({
   }
 }));
 
-// MySQL Database Connection for Railway
-const db = mysql.createConnection({
-  host: process.env.MYSQLHOST || 'localhost',
-  user: process.env.MYSQLUSER || 'root',
-  password: process.env.MYSQLPASSWORD || 'your_password',
-  database: process.env.MYSQLDATABASE || 'disaster_alert',
-  port: process.env.MYSQLPORT || 3306,
-  connectTimeout: 60000
-});
+// MySQL Database Connection for Railway - UPDATED
+function getDbConfig() {
+  if (process.env.DATABASE_URL) {
+    // Parse DATABASE_URL for Railway
+    const url = new URL(process.env.DATABASE_URL);
+    return {
+      host: url.hostname,
+      port: url.port || 3306,
+      user: url.username,
+      password: url.password,
+      database: url.pathname.replace('/', ''),
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      connectTimeout: 60000
+    };
+  } else {
+    // Fallback for local development
+    return {
+      host: process.env.MYSQLHOST || 'localhost',
+      user: process.env.MYSQLUSER || 'root',
+      password: process.env.MYSQLPASSWORD || 'your_password',
+      database: process.env.MYSQLDATABASE || 'disaster_alert',
+      port: process.env.MYSQLPORT || 3306,
+      connectTimeout: 60000
+    };
+  }
+}
+
+const db = mysql.createConnection(getDbConfig());
 
 // Connect with retry logic
 function connectWithRetry() {
   db.connect((err) => {
     if (err) {
       console.error('Database connection failed:', err);
+      console.log('Database config:', getDbConfig());
       console.log('Retrying in 5 seconds...');
       setTimeout(connectWithRetry, 5000);
     } else {
