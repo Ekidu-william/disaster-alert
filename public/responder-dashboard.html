@@ -406,11 +406,34 @@
 
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
-        const API_URL = window.location.origin;
+        // Use relative URLs instead of absolute
+        const API_URL = '';
         let map, markers = {};
         let socket;
         let disasters = [];
         let selectedDisaster = null;
+
+        // Check authentication first
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/check', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+
+                if (!data.authenticated) {
+                    window.location.href = 'responder-login.html';
+                    return false;
+                } else {
+                    document.getElementById('username').textContent = data.responder.username;
+                    return true;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = 'responder-login.html';
+                return false;
+            }
+        }
 
         // Initialize Google Maps
         function initMap() {
@@ -419,12 +442,19 @@
                 zoom: 12
             });
 
+            // Load disasters after map is initialized
             loadDisasters();
         }
 
         // Connect to Socket.IO
         function connectSocket() {
-            socket = io(API_URL);
+            socket = io(API_URL, {
+                withCredentials: true
+            });
+
+            socket.on('connect', () => {
+                console.log('Connected to server via Socket.IO');
+            });
 
             socket.on('new-disaster', (disaster) => {
                 console.log('New disaster received:', disaster);
@@ -442,36 +472,26 @@
                     updateMarker(disaster);
                 }
             });
-        }
 
-        // Check authentication
-        async function checkAuth() {
-            try {
-                const response = await fetch(`${API_URL}/api/auth/check`, {
-                    credentials: 'include'
-                });
-                const data = await response.json();
-
-                if (!data.authenticated) {
-                    window.location.href = 'responder-login.html';
-                } else {
-                    document.getElementById('username').textContent = data.responder.username;
-                }
-            } catch (error) {
-                window.location.href = 'responder-login.html';
-            }
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+            });
         }
 
         // Load disasters
         async function loadDisasters() {
             try {
-                const response = await fetch(`${API_URL}/api/disasters`, {
+                const response = await fetch('/api/disasters', {
                     credentials: 'include'
                 });
 
-                if (!response.ok) {
+                if (response.status === 401) {
                     window.location.href = 'responder-login.html';
                     return;
+                }
+
+                if (!response.ok) {
+                    throw new Error('Failed to load disasters');
                 }
 
                 disasters = await response.json();
@@ -481,6 +501,11 @@
                 disasters.forEach(disaster => addMarker(disaster));
             } catch (error) {
                 console.error('Error loading disasters:', error);
+                document.getElementById('disasterList').innerHTML = `
+                    <div class="empty-state">
+                        <p>Error loading emergency reports</p>
+                    </div>
+                `;
             }
         }
 
@@ -497,61 +522,68 @@
         }
 
         function renderDisasterList() {
-    const listEl = document.getElementById('disasterList');
+            const listEl = document.getElementById('disasterList');
 
-    if (disasters.length === 0) {
-        listEl.innerHTML = `
-            <div class="empty-state">
-                <p>No emergency reports at the moment</p>
-            </div>
-        `;
-        return;
-    }
-
-    listEl.innerHTML = disasters.map(disaster => {
-        const lat = parseFloat(disaster.latitude);
-        const lng = parseFloat(disaster.longitude);
-        const latText = isNaN(lat) ? 'Unknown' : lat.toFixed(6);
-        const lngText = isNaN(lng) ? 'Unknown' : lng.toFixed(6);
-
-        return `
-            <div class="disaster-card ${disaster.status}">
-                <div class="disaster-header">
-                    <div class="disaster-type">🚨 ${disaster.disaster_type}</div>
-                    <span class="status-badge ${disaster.status}">${disaster.status}</span>
-                </div>
-                <div class="disaster-info">
-                    <strong>Reporter:</strong> ${disaster.reporter_name} | ${disaster.reporter_phone}
-                </div>
-                <div class="disaster-info">
-                    <strong>Description:</strong> ${disaster.description || 'No description provided'}
-                </div>
-                <div class="disaster-info">
-                    <strong>Location:</strong> ${latText}, ${lngText}
-                </div>
-                <div class="disaster-info">
-                    <strong>Reported:</strong> ${new Date(disaster.created_at).toLocaleString()}
-                </div>
-                ${disaster.status === 'accepted' ? `
-                    <div class="disaster-info" style="margin-top: 10px; padding: 10px; background: #d4edda; border-radius: 6px;">
-                        <strong>Accepted by:</strong> ${disaster.responder_name}<br>
-                        <strong>ETA:</strong> ${disaster.estimated_time}
+            if (disasters.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <p>No emergency reports at the moment</p>
                     </div>
-                ` : ''}
-                <div class="disaster-actions">
-                    <button class="btn btn-view" onclick="viewOnMap(${disaster.id})">View on Map</button>
-                    ${disaster.status === 'pending' ? `
-                        <button class="btn btn-accept" onclick="openAcceptModal(${disaster.id})">Accept Request</button>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
-}
+                `;
+                return;
+            }
 
+            listEl.innerHTML = disasters.map(disaster => {
+                const lat = parseFloat(disaster.latitude);
+                const lng = parseFloat(disaster.longitude);
+                const latText = isNaN(lat) ? 'Unknown' : lat.toFixed(6);
+                const lngText = isNaN(lng) ? 'Unknown' : lng.toFixed(6);
+
+                return `
+                    <div class="disaster-card ${disaster.status}">
+                        <div class="disaster-header">
+                            <div class="disaster-type">🚨 ${disaster.disaster_type}</div>
+                            <span class="status-badge ${disaster.status}">${disaster.status}</span>
+                        </div>
+                        <div class="disaster-info">
+                            <strong>Reporter:</strong> ${disaster.reporter_name} | ${disaster.reporter_phone}
+                        </div>
+                        <div class="disaster-info">
+                            <strong>Description:</strong> ${disaster.description || 'No description provided'}
+                        </div>
+                        <div class="disaster-info">
+                            <strong>Location:</strong> ${latText}, ${lngText}
+                        </div>
+                        <div class="disaster-info">
+                            <strong>Reported:</strong> ${new Date(disaster.created_at).toLocaleString()}
+                        </div>
+                        ${disaster.status === 'accepted' ? `
+                            <div class="disaster-info" style="margin-top: 10px; padding: 10px; background: #d4edda; border-radius: 6px;">
+                                <strong>Accepted by:</strong> ${disaster.responder_name || 'Responder'}<br>
+                                <strong>ETA:</strong> ${disaster.estimated_time}
+                            </div>
+                        ` : ''}
+                        <div class="disaster-actions">
+                            <button class="btn btn-view" onclick="viewOnMap(${disaster.id})">View on Map</button>
+                            ${disaster.status === 'pending' ? `
+                                <button class="btn btn-accept" onclick="openAcceptModal(${disaster.id})">Accept Request</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
 
         // Add marker to map
         function addMarker(disaster) {
+            const lat = parseFloat(disaster.latitude);
+            const lng = parseFloat(disaster.longitude);
+
+            if (isNaN(lat) || isNaN(lng)) {
+                console.warn('Invalid coordinates for disaster:', disaster.id);
+                return;
+            }
+
             const icon = {
                 path: google.maps.SymbolPath.CIRCLE,
                 scale: 10,
@@ -562,7 +594,7 @@
             };
 
             const marker = new google.maps.Marker({
-                position: { lat: parseFloat(disaster.latitude), lng: parseFloat(disaster.longitude) },
+                position: { lat: lat, lng: lng },
                 map: map,
                 icon: icon,
                 title: disaster.disaster_type
@@ -570,12 +602,12 @@
 
             const infoWindow = new google.maps.InfoWindow({
                 content: `
-                    <div style="padding: 10px;">
-                        <h3>${disaster.disaster_type}</h3>
-                        <p><strong>Reporter:</strong> ${disaster.reporter_name}</p>
-                        <p><strong>Phone:</strong> ${disaster.reporter_phone}</p>
-                        <p><strong>Status:</strong> ${disaster.status}</p>
-                        ${disaster.description ? `<p><strong>Description:</strong> ${disaster.description}</p>` : ''}
+                    <div style="padding: 10px; min-width: 200px;">
+                        <h3 style="margin: 0 0 10px 0; color: #333;">${disaster.disaster_type}</h3>
+                        <p style="margin: 5px 0;"><strong>Reporter:</strong> ${disaster.reporter_name}</p>
+                        <p style="margin: 5px 0;"><strong>Phone:</strong> ${disaster.reporter_phone}</p>
+                        <p style="margin: 5px 0;"><strong>Status:</strong> ${disaster.status}</p>
+                        ${disaster.description ? `<p style="margin: 5px 0;"><strong>Description:</strong> ${disaster.description}</p>` : ''}
                     </div>
                 `
             });
@@ -606,9 +638,13 @@
         function viewOnMap(disasterId) {
             const disaster = disasters.find(d => d.id === disasterId);
             if (disaster && markers[disaster.id]) {
-                map.setCenter({ lat: parseFloat(disaster.latitude), lng: parseFloat(disaster.longitude) });
-                map.setZoom(15);
-                markers[disaster.id].infoWindow.open(map, markers[disaster.id].marker);
+                const lat = parseFloat(disaster.latitude);
+                const lng = parseFloat(disaster.longitude);
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    map.setCenter({ lat: lat, lng: lng });
+                    map.setZoom(15);
+                    markers[disaster.id].infoWindow.open(map, markers[disaster.id].marker);
+                }
             }
         }
 
@@ -628,8 +664,13 @@
         async function confirmAccept() {
             const estimatedTime = document.getElementById('estimatedTime').value;
 
+            if (!selectedDisaster) {
+                alert('No disaster selected');
+                return;
+            }
+
             try {
-                const response = await fetch(`${API_URL}/api/accept-disaster`, {
+                const response = await fetch('/api/accept-disaster', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -646,10 +687,13 @@
                 if (response.ok) {
                     alert('Emergency request accepted successfully!');
                     closeModal();
+                    // Reload disasters to get updated data
+                    loadDisasters();
                 } else {
                     alert(data.error || 'Failed to accept request');
                 }
             } catch (error) {
+                console.error('Error accepting disaster:', error);
                 alert('Network error. Please try again.');
             }
         }
@@ -657,20 +701,30 @@
         // Logout
         async function logout() {
             try {
-                await fetch(`${API_URL}/api/logout`, {
+                await fetch('/api/logout', {
                     method: 'POST',
                     credentials: 'include'
                 });
                 window.location.href = 'responder-login.html';
             } catch (error) {
                 console.error('Logout error:', error);
+                window.location.href = 'responder-login.html';
             }
         }
 
-        // Initialize
-        checkAuth();
-        connectSocket();
+        // Initialize application
+        async function initializeApp() {
+            const isAuthenticated = await checkAuth();
+            if (isAuthenticated) {
+                connectSocket();
+                // Map will be initialized by the Google Maps callback
+            }
+        }
+
+        // Start the application
+        initializeApp();
     </script>
+    <!-- Replace YOUR_GOOGLE_MAPS_API_KEY with your actual API key -->
     <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&callback=initMap" async defer></script>
 </body>
 </html>
