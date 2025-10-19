@@ -44,6 +44,7 @@ app.use(session({
 }));
 
 // MySQL Database Connection for Railway
+// MySQL Database Connection for Railway - USING POOLING
 function getDbConfig() {
   if (process.env.DATABASE_URL) {
     // Parse DATABASE_URL for Railway
@@ -55,7 +56,10 @@ function getDbConfig() {
       password: url.password,
       database: url.pathname.replace('/', ''),
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-      connectTimeout: 60000
+      connectTimeout: 60000,
+      acquireTimeout: 60000,
+      timeout: 60000,
+      reconnect: true
     };
   } else {
     // Fallback for local development
@@ -65,34 +69,47 @@ function getDbConfig() {
       password: process.env.MYSQLPASSWORD || '',
       database: process.env.MYSQLDATABASE || 'disaster_alert',
       port: process.env.MYSQLPORT || 3306,
-      connectTimeout: 60000
+      connectTimeout: 60000,
+      acquireTimeout: 60000,
+      timeout: 60000
     };
   }
 }
 
-const db = mysql.createConnection(getDbConfig());
+// Use connection pool instead of single connection
+const db = mysql.createPool(getDbConfig());
 
-// Connect with retry logic
-function connectWithRetry() {
-  db.connect((err) => {
-    if (err) {
-      console.error('Database connection failed:', err);
-      console.log('Retrying in 5 seconds...');
-      setTimeout(connectWithRetry, 5000);
-    } else {
-      console.log('Connected to MySQL database');
-      createTables();
-    }
-  });
-}
+// Test database connection
+db.getConnection((err, connection) => {
+  if (err) {
+    console.error('Database connection failed:', err);
+    setTimeout(() => {
+      db.getConnection((err, connection) => {
+        if (err) {
+          console.error('Retry failed:', err);
+        } else {
+          console.log('Database reconnected successfully');
+          connection.release();
+          createTables();
+        }
+      });
+    }, 5000);
+  } else {
+    console.log('Connected to MySQL database');
+    connection.release();
+    createTables();
+  }
+});
 
-connectWithRetry();
-
-// Handle connection errors
+// Handle pool errors
 db.on('error', (err) => {
-  console.error('Database error:', err);
+  console.error('Database pool error:', err);
   if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-    connectWithRetry();
+    console.log('Database connection was closed.');
+  } else if (err.code === 'ER_CON_COUNT_ERROR') {
+    console.log('Database has too many connections.');
+  } else if (err.code === 'ECONNREFUSED') {
+    console.log('Database connection was refused.');
   }
 });
 
@@ -126,12 +143,12 @@ const createTables = () => {
     )
   `;
 
-  db.query(responderTable, (err) => {
+  db.execute(responderTable, (err) => {
     if (err) console.error('Error creating responders table:', err);
     else console.log('Responders table ready');
   });
 
-  db.query(disasterTable, (err) => {
+  db.execute(disasterTable, (err) => {
     if (err) console.error('Error creating disasters table:', err);
     else console.log('Disasters table ready');
   });
@@ -173,6 +190,7 @@ app.post('/api/register', async (req, res) => {
 });
 
 // Login Responder
+// Login Responder - UPDATED WITH POOL
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
 
@@ -181,10 +199,11 @@ app.post('/api/login', (req, res) => {
   }
 
   const query = 'SELECT * FROM responders WHERE username = ?';
-  db.query(query, [username], async (err, results) => {
+  
+  db.execute(query, [username], async (err, results) => {
     if (err) {
-      console.error('Login query error:', err);
-      return res.status(500).json({ error: 'Login failed' });
+      console.error('Database error during login:', err);
+      return res.status(500).json({ error: 'Database error' });
     }
 
     if (results.length === 0) {
@@ -213,7 +232,7 @@ app.post('/api/login', (req, res) => {
       });
     } catch (error) {
       console.error('Password comparison error:', error);
-      return res.status(500).json({ error: 'Login failed' });
+      return res.status(500).json({ error: 'Server error during login' });
     }
   });
 });
